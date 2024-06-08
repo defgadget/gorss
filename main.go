@@ -1,11 +1,11 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/defgadget/gorss/internal/database"
 	"github.com/joho/godotenv"
@@ -32,7 +32,7 @@ func main() {
 	}
 
 	dbQueries := database.New(db)
-	api := NewAPIConfig(dbQueries, context.Background())
+	api := NewAPIConfig(dbQueries)
 
 	mux.HandleFunc("GET /v1/healthz", healthz)
 	mux.HandleFunc("GET /v1/err", alwaysErrors)
@@ -47,5 +47,18 @@ func main() {
 	mux.HandleFunc("POST /v1/feed_follows", api.middlewareAuth(api.CreateFeedFollow))
 	mux.HandleFunc("DELETE /v1/feed_follows/{feedFollowID}", api.middlewareAuth(api.DeleteFollowFeed))
 
+	mux.HandleFunc("GET /v1/posts", api.middlewareAuth(api.GetPostsByUser))
+
+	concurrentJobs := 10
+	scraper := Scraper{ConcurrentJobs: concurrentJobs, wg: sync.WaitGroup{}, db: dbQueries}
+	go scraper.Run()
 	panic(server.ListenAndServe())
+}
+
+type apiConfig struct {
+	DB *database.Queries
+}
+
+func NewAPIConfig(db *database.Queries) *apiConfig {
+	return &apiConfig{DB: db}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -12,7 +13,9 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		panic(err)
+	}
 	port := os.Getenv("PORT")
 	dbURL := os.Getenv("SQL_CONN")
 
@@ -27,8 +30,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
 	dbQueries := database.New(db)
-	api := NewAPIConfig(dbQueries)
+	api := NewAPIConfig(dbQueries, context.Background())
 
 	mux.HandleFunc("GET /v1/healthz", healthz)
 	mux.HandleFunc("GET /v1/err", alwaysErrors)
@@ -38,6 +42,10 @@ func main() {
 
 	mux.HandleFunc("GET /v1/feeds", api.GetAllFeeds)
 	mux.HandleFunc("POST /v1/feeds", api.middlewareAuth(api.CreateFeed))
+
+	mux.HandleFunc("GET /v1/feed_follows", api.middlewareAuth(api.GetAllFeedFollows))
+	mux.HandleFunc("POST /v1/feed_follows", api.middlewareAuth(api.CreateFeedFollow))
+	mux.HandleFunc("DELETE /v1/feed_follows/{feedFollowID}", api.middlewareAuth(api.DeleteFollowFeed))
 
 	panic(server.ListenAndServe())
 }
